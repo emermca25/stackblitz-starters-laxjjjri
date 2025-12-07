@@ -1,97 +1,86 @@
-// app/admin/signup/page.tsx
-"use client";
-import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
+import { supabaseAdmin } from "@/lib/supabase";
 
-export default function SignupPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [hotelName, setHotelName] = useState("");
-  const [postcode, setPostcode] = useState("");
-  const [error, setError] = useState("");
+export default async function Home() {
+  const slug = process.env.HOTEL_SLUG || "seaview";
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+  const {
+    data: hotel,
+    error: hotelError,
+  } = await supabaseAdmin
+    .from("hotels")
+    .select("id, name")
+    .eq("slug", slug)
+    .maybeSingle(); // doesn't throw if not found
 
-    if (error) return setError(error.message);
+  if (hotelError) {
+    console.error("Hotel query error:", hotelError);
+  }
 
-    const userId = data.user?.id;
-    if (!userId) return;
+  if (!hotel) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-8">
+        <div className="max-w-md text-center space-y-2">
+          <h1 className="text-2xl font-semibold">No hotel found</h1>
+          <p className="text-sm text-slate-600">
+            I couldn&apos;t find a hotel with slug <code>{slug}</code>.
+            Check your Supabase data or the <code>HOTEL_SLUG</code> env var.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
-    await supabase.from("hotels").insert({
-      user_id: userId,
-      name: hotelName,
-      postcode,
-    });
+  const {
+    data: poi,
+    error: poiError,
+  } = await supabaseAdmin
+    .from("poi")
+    .select("id, title, category, description, affiliate_url, url, tags")
+    .eq("hotel_id", hotel.id);
 
-    router.push("/admin/dashboard");
-  };
+  if (poiError) {
+    console.error("POI query error:", poiError);
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 to-white flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl border border-slate-200">
-        <h1 className="text-3xl font-bold mb-6 text-center text-slate-800">Create Hotel Account</h1>
-        <form onSubmit={handleSignup} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Hotel Name</label>
-            <input
-              type="text"
-              placeholder="e.g. Seaview Hotel"
-              value={hotelName}
-              onChange={(e) => setHotelName(e.target.value)}
-              className="w-full rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
-            />
+    <main className="max-w-5xl mx-auto p-8 space-y-6">
+      <header>
+        <h1 className="text-3xl font-bold">{hotel.name} – Local Area</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Hand-picked places near the hotel.
+        </p>
+      </header>
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {(poi ?? []).map((p: any) => (
+        <a
+        key={p.id}
+        href={(p.affiliate_url || p.url) || "#"}
+        target="_blank"
+        rel="noreferrer"
+        className="block rounded-xl border bg-white p-4 shadow-sm hover:shadow-md transition"
+      >
+        <div className="font-semibold">{p.title}</div>
+      
+        <div className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+          {p.category}
+        </div>
+      
+        <p className="mt-2 text-sm text-slate-700">{p.description}</p>
+      
+        {p.tags && (
+          <div className="mt-2 text-xs text-slate-500">
+            {Array.isArray(p.tags) ? p.tags.join(", ") : p.tags}
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Postcode</label>
-            <input
-              type="text"
-              placeholder="e.g. BN1 1AA"
-              value={postcode}
-              onChange={(e) => setPostcode(e.target.value)}
-              className="w-full rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Email</label>
-            <input
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-sky-600 hover:bg-sky-700 text-white font-medium py-2 px-4 rounded-lg transition"
-          >
-            Sign Up
-          </button>
-
-          {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-        </form>
-      </div>
-    </div>
+        )}
+      
+        <div className="mt-3 text-sm text-blue-600">
+          Book / Learn more →
+        </div>
+      </a>
+      
+        ))}
+      </section>
+    </main>
   );
 }
